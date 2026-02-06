@@ -1,7 +1,7 @@
-// LoyaltyCard.js
+// LoyaltyCard_v08.js
 // DroidScript 2.78.9
 // ------------------------------------------------------------
-// v0.7
+// v0.8 (integrated)
 // - Home: 2-col grid, correct real aspect ratio W/H=1.6
 // - Home tiles: Title + Notes only (NO barcode)
 // - Detail view: headerColor + optional logo + offline barcode (EAN-13 + Code128-B)
@@ -12,7 +12,7 @@
 // - Deleting a card deletes its referenced images
 // ------------------------------------------------------------
 
-app.Script("Helpers.js");
+app.Script("LoyaltyCard_helpers.js");
 
 var APP_NAME = "LoyaltyPortfolio";
 var BASE_DIR = "/sdcard/DroidScript/" + APP_NAME;
@@ -20,6 +20,7 @@ var DATA_FILE = BASE_DIR + "/dataset.json";
 
 var gData = null;
 var gEffectiveFontColor = "#FFFFFF";
+var gTapLock = false;
 
 // UI refs
 var layRoot, wvBg, layUi, layHome, scHome, layGrid;
@@ -59,30 +60,60 @@ var TEMPLATES = {
 <body><div class="card"><div class="circle"><div class="plus">+</div></div></div></body></html>`;
   },
 
-  // Home tile (NO barcode, NO header bar)
+  // Home tile (NO barcode, NO header bar, only logo on background)
   tpl_basic_tile: function (card) {
     var title = escapeHtml(card.title || "");
     var subtitle = escapeHtml((card.notes || "").trim());
+    var headerColor = escapeHtml(card.headerColor || "#2B2B2B");
+    var logoUri = card.logoImageId ? imageDataUri(card.logoImageId) : null;
+    var logoHtml = logoUri ? `<img class="logo" src="${logoUri}">` : `<div class="logoPh"></div>`;
+    
+
     return `
 <!doctype html><html><head>
 <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,user-scalable=no" />
 <style>
   html,body{margin:0;padding:0;height:100%;background:transparent;font-family:sans-serif;}
-  .card{height:100%;border-radius:18px;box-sizing:border-box;padding:14px;color:white;
-    background:linear-gradient(135deg, rgba(255,255,255,.12), rgba(0,0,0,.25));
     border:1px solid rgba(255,255,255,.18);position:relative;overflow:hidden;}
-  .title{font-size:18px;font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .sub{margin-top:10px;font-size:13px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .shine{position:absolute;top:-40%;left:-40%;width:120%;height:120%;
-    background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.18), transparent 60%);
-    transform:rotate(18deg);}
-</style></head>
-<body><div class="card"><div class="shine"></div>
-  <div class="title">${title}</div>
-  <div class="sub">${subtitle}</div>
-</div></body></html>`;
-  },
+      .logoPh{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.12);}
 
+
+.card{
+  height:100%;
+  border-radius:18px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.18);
+  position:relative;
+  background:${headerColor}; /* move color here */
+}
+
+.header{
+  height:100%;
+  display:flex;               /* add flex */
+  align-items:center;         /* works now */
+  justify-content:center;     /* horizontally center */
+}
+
+.logo{
+  max-width:80%;
+  max-height:80%;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  background:transparent;
+}
+
+
+</style></head>
+<body>
+<div class="card">
+ 
+  <div class="header" style="text-align:center;">${logoHtml}</div>
+ 
+</div>
+
+</body></html>`;
+  },
   // Detail view (header + logo + barcode panel)
   tpl_basic_full: function (card) {
     var title = escapeHtml(card.title || "");
@@ -126,8 +157,16 @@ var TEMPLATES = {
   .card{height:100%;border-radius:18px;overflow:hidden;
     background:linear-gradient(135deg, rgba(255,255,255,.12), rgba(0,0,0,.25));
     border:1px solid rgba(255,255,255,.18);color:white;box-sizing:border-box;}
-  .header{height:64px;background:${headerColor};display:flex;align-items:center;padding:10px 12px;box-sizing:border-box;}
-  .logo{max-width:44px;max-height:44px;width:auto;height:auto;border-radius:10px;background:rgba(255,255,255,.10);}
+  .header
+    {
+        height:64px;
+        background:${headerColor};
+        text-align:center;
+        align-items:center;
+        padding:10px 12px;
+        box-sizing:border-box;
+    }
+  .logo{max-width:44px;max-height:44px;width:auto;height:auto;border-radius:2px;background:rgba(255,255,255,.10);}
   .logoPh{width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.12);}
   .hText{margin-left:10px;overflow:hidden;}
   .hTitle{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -142,12 +181,8 @@ var TEMPLATES = {
 </style>
 </head><body>
 <div class="card">
-  <div class="header">
+  <div class="header" style="text-align:center;">
     ${logoHtml}
-    <div class="hText">
-      <div class="hTitle">${title}</div>
-      <div class="hSub">${subtitle}</div>
-    </div>
   </div>
   <div class="content">
     ${contentBlock}
@@ -188,7 +223,8 @@ barcode_render_scripts
 // ------------------------------------------------------------
 // DroidScript entry
 // ------------------------------------------------------------
-function OnStart() {
+function OnStart() 
+{
   app.SetOrientation("Portrait");
   ensureFolders();
   loadOrInitData();
@@ -247,7 +283,8 @@ function OnStart() {
 // ------------------------------------------------------------
 // Home render (2-col)
 // ------------------------------------------------------------
-function renderHome() {
+function renderHome() 
+{
   applyGradientBackground();
 
   // Recreate layGrid (no RemoveAllChildren in DS 2.78.9 reliably)
@@ -265,44 +302,62 @@ function renderHome() {
   var tileW = 0.46;
   var tileH = tileW / 1.6 / asp;
 
-  for (var i = 0; i < tiles.length; i += 2) {
+  // Home page card layout
+  for (var i = 0; i < tiles.length; i += 2) 
+  {
     var row = app.CreateLayout("Linear", "Horizontal,FillX");
-    row.SetPadding(0, 0, 0, 0.02);
-    row.SetSize(1.0, tileH);
-
     row.AddChild(createTile(tiles[i], tileW, tileH));
-    if (i+1 < tiles.length) row.AddChild(createTile(tiles[i+1], tileW, tileH));
-    else row.AddChild(app.CreateText("", tileW, tileH));
+    if (i+1 < tiles.length) 
+        row.AddChild(createTile(tiles[i+1], tileW, tileH));
+    else                    
+        row.AddChild(app.CreateText("", tileW, tileH));
 
     layGrid.AddChild(row);
   }
 }
 
-function createTile(tile, w, h) {
-  var lay = app.CreateLayout("Frame");
-  lay.SetSize(w, h);
 
-  var wv = app.CreateWebView(w, h, "NoScroll,IgnoreErrors");
-  wv.SetBackColor("#00000000");
+function createTile(tile, w, h)
+{
+    var lay = app.CreateLayout("Frame");
+    lay.SetSize(w, h);
 
-  // WebView may eat touches; overlay transparent button
-  var hit = app.CreateButton("", w, h);
-  hit.SetStyle("#00000000", "#00000000", 0, "#00000000", 0);
+    var wv = app.CreateWebView(w, h, "NoScroll,IgnoreErrors");
+    wv.SetBackColor("#00000000");
+    lay.AddChild(wv);
 
-  if (tile && tile.__isAddTile) {
-    wv.LoadHtml(TEMPLATES.tpl_add());
-    hit.SetOnTouch(openAddCardDialog);
-  } else {
-    var card = tile;
-    if (card.cardKind === "template") wv.LoadHtml(TEMPLATES.tpl_basic_tile(card));
-    else wv.LoadHtml(imageTileHtml(card.title, card.notes, imageDataUri(card.frontImageId)));
-    hit.SetOnTouch((function(id){ return function(){ onCardTapped(id); }; })(card.id));
-  }
+    // Replace Button overlay with Layout overlay (no darkening)
+    var hit = app.CreateLayout("Linear");
+    hit.SetSize(w, h);
+    hit.SetBackColor("#00000000");
+    
+    //var bg = (tile && tile.headerColor) ? tile.headerColor : "#00000000";
+    //hit.SetBackColor(bg);
+    
 
-  lay.AddChild(wv);
-  lay.AddChild(hit);
-  return lay;
+    if (tile && tile.__isAddTile)
+    {
+        wv.LoadHtml(TEMPLATES.tpl_add());
+        hit.SetOnTouch(function(){ RunOnceTap(openAddCardDialog); });
+    }
+    else
+    {
+        var card = tile;
+        if (card.cardKind === "template")
+            wv.LoadHtml(TEMPLATES.tpl_basic_tile(card));
+        else
+            wv.LoadHtml(imageTileHtml(card.title, card.notes, imageDataUri(card.frontImageId)));
+        
+        hit.SetOnTouch((function(id){
+            return function(){ RunOnceTap(function(){ onCardTapped(id); }); };
+        })(card.id));
+
+    }
+
+    lay.AddChild(hit);
+    return lay;
 }
+
 
 // ------------------------------------------------------------
 // Card tap -> detail actions
@@ -522,14 +577,27 @@ function openManualCardDialog(existingCardId){
   lay.AddChild(app.CreateText("Logo (base64, max 256×256 recommended)", 0.94, -1, "Left"));
   var btnLogo = app.CreateButton(card.logoImageId ? "Replace Logo" : "Add Logo", 0.94, 0.08);
   lay.AddChild(btnLogo);
-  btnLogo.SetOnTouch(function(){
-    chooseImageAsBase64(function(imgObj){
-      var imgId = uuidv4();
-      gData.images[imgId] = imgObj;
-      card.logoImageId = imgId;
-      btnLogo.SetText("Replace Logo");
-    });
+  
+  
+  
+  btnLogo.SetOnTouch(function () {
+  chooseImageAsBase64(function (imgObj) {
+    var imgId = uuidv4();
+    gData.images[imgId] = imgObj;
+    card.logoImageId = imgId;
+
+
+    dominantColorFromBase64(imgObj.base64, { sampleStride: 6, quant: 20 })
+      .then((c) => {
+          card.headerColor = c.hex;
+          btnHeaderCol.SetText("Pick Header Color (" + c.hex + ")");
+      })
+  
+    
   });
+});
+
+  
 
   // Template fields (only visible when template)
   var layTpl = app.CreateLayout("Linear", "FillX");
@@ -680,7 +748,8 @@ function openNotesDialog(cardId){
 // ------------------------------------------------------------
 // Photos viewer
 // ------------------------------------------------------------
-function openPhotosViewer(cardId){
+function openPhotosViewer(cardId)
+{
   var card = findCardById(cardId);
   if(!card) return;
 
@@ -705,7 +774,8 @@ function openPhotosViewer(cardId){
   if(card.backImageId && gData.images[card.backImageId]) sides.push({side:"back", id:card.backImageId});
   var idx = 0;
 
-  function show(){
+  function show()
+  {
     if(sides.length === 0){ wv.LoadHtml(imageTileHtml("No photos", "", null)); return; }
     var cur = sides[idx];
     wv.LoadHtml(photoViewerHtml(cur.side.toUpperCase(), imageDataUri(cur.id)));
@@ -916,7 +986,8 @@ function openSettingsToolsDialog(){
 // ------------------------------------------------------------
 // Import merge (by UUID; default ignore existing; optional override w/ consent)
 // ------------------------------------------------------------
-function importDataset(incoming, overrideOnConsent, done){
+function importDataset(incoming, overrideOnConsent, done)
+{
   // Merge images first
   Object.keys(incoming.images).forEach(function(imgId){
     if(!gData.images[imgId]) gData.images[imgId] = incoming.images[imgId];
@@ -954,7 +1025,8 @@ function importDataset(incoming, overrideOnConsent, done){
 // ------------------------------------------------------------
 // Custom dialogs (Confirm / Input)
 // ------------------------------------------------------------
-function confirmDialog(message, cb){
+function confirmDialog(message, cb)
+{
   var dlg = app.CreateDialog("", "NoTitle");
   var lay = app.CreateLayout("Linear", "FillXY");
   lay.SetPadding(0.04,0.04,0.04,0.04);
@@ -980,7 +1052,8 @@ function confirmDialog(message, cb){
   dlg.Show();
 }
 
-function inputDialog(title, initial, cb){
+function inputDialog(title, initial, cb)
+{
   var dlg = app.CreateDialog("", "NoTitle");
   var lay = app.CreateLayout("Linear", "FillXY");
   lay.SetPadding(0.04,0.04,0.04,0.04);
@@ -1015,17 +1088,17 @@ function inputDialog(title, initial, cb){
 function chooseImageAsBase64(cb){
   app.ChooseImage("Internal", function(path){
     if(!path) return;
-    try {
+    try 
+    {
       var b64 = app.ReadFile(path, "base64");
       var mime = guessMimeFromPath(path);
       cb({ mime: mime, base64: b64 });
-    } catch(e){
-      app.Alert("Could not read image as base64.\n\n" + e);
-    }
+    } catch(e){ app.Alert("Could not read image as base64.\n\n" + e); }
   });
 }
 
-function imageDataUri(imageId){
+function imageDataUri(imageId)
+{
   if(!imageId) return null;
   var obj = gData.images[imageId];
   if(!obj || !obj.base64) return null;
@@ -1058,7 +1131,8 @@ function imageTileHtml(title, notes, dataUri){
   .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);
     font-size:13px;font-weight:700;}
 </style></head>
-<body><div class="card">${placeholder}<div class="title">${safeTitle}</div><div class="sub">${safeSub}</div></div></body></html>`;
+<body><div class="card">${placeholder}<div class="title">${safeTitle}</div><div class="sub">${safeSub}</div></div></body>
+</html>`;
 }
 
 // ------------------------------------------------------------
@@ -1163,7 +1237,8 @@ function normalizeCard(c){
   return c;
 }
 
-function saveData(){
+function saveData()
+{
   gcImages();
   app.WriteFile(DATA_FILE, JSON.stringify(gData, null, 2));
 }
@@ -1204,7 +1279,8 @@ function findCardById(id){
 // ------------------------------------------------------------
 // Sorting
 // ------------------------------------------------------------
-function getSortedCards(){
+function getSortedCards()
+{
   var cards = gData.cards.slice();
   var mode = gData.settings.sortMode || "alphabetical";
 
@@ -1242,7 +1318,8 @@ function getSortedCards(){
 // ------------------------------------------------------------
 // Font color: luminance of avg(top,bottom) > 0.75 -> black else white
 // ------------------------------------------------------------
-function computeEffectiveFontColor(){
+function computeEffectiveFontColor()
+{
   var top = gData.settings.gradientTop || "#460075";
   var bot = gData.settings.gradientBottom || "#000000";
   var avg = avgColor(top, bot);
@@ -1255,46 +1332,61 @@ function computeEffectiveFontColor(){
 // ------------------------------------------------------------
 function nowEpochSeconds(){ return Math.floor(Date.now()/1000); }
 
-function uuidv4(){
+function uuidv4()
+{
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){
     var r=(Math.random()*16)|0, v=c==="x"?r:(r&0x3)|0x8;
     return v.toString(16);
   });
 }
 
-function normStr(s){
+function RunOnceTap(fn) {
+    if (gTapLock) return;
+    gTapLock = true;
+    try { fn(); } catch(e) { app.Alert(e); }
+    setTimeout(function(){ gTapLock = false; }, 350); // 250–500ms works well
+}
+
+
+function normStr(s)
+{
   s=(s||"").toString().trim().toLowerCase();
   try { s=s.normalize("NFD").replace(/[\u0300-\u036f]/g,""); } catch(e){}
   return s;
 }
 
-function escapeHtml(s){
+function escapeHtml(s)
+{
   return (s||"").toString()
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 }
 
-function escapeJs(s){
+function escapeJs(s)
+{
   return (s||"").toString()
     .replace(/\\/g,"\\\\").replace(/`/g,"\\`").replace(/\$/g,"\\$")
     .replace(/\r/g,"\\r").replace(/\n/g,"\\n").replace(/"/g,'\\"');
 }
 
-function normalizeHex(s){
+function normalizeHex(s)
+{
   s=(s||"").trim();
   if(s[0] !== "#") s="#" + s;
   if(s.length === 4) s="#" + s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
   return s.toUpperCase();
 }
 
-function guessMimeFromPath(path){
+function guessMimeFromPath(path)
+{
   var p=(path||"").toLowerCase();
   if(p.endsWith(".png")) return "image/png";
   if(p.endsWith(".webp")) return "image/webp";
   return "image/jpeg";
 }
 
-function hexToRgb01(hex){
+function hexToRgb01(hex)
+{
   hex = normalizeHex(hex);
   return {
     r: parseInt(hex.substr(1,2),16)/255.0,
@@ -1303,7 +1395,8 @@ function hexToRgb01(hex){
   };
 }
 
-function avgColor(a,b){
+function avgColor(a,b)
+{
   var A=hexToRgb01(a), B=hexToRgb01(b);
   var r=Math.round(((A.r+B.r)/2)*255);
   var g=Math.round(((A.g+B.g)/2)*255);
@@ -1311,12 +1404,14 @@ function avgColor(a,b){
   return "#" + toHex2(r) + toHex2(g) + toHex2(bb);
 }
 
-function toHex2(n){
+function toHex2(n)
+{
   var s=n.toString(16);
   return s.length===1 ? ("0"+s) : s;
 }
 
-function luminance01(hex){
+function luminance01(hex)
+{
   var c=hexToRgb01(hex);
   return 0.2126*c.r + 0.7152*c.g + 0.0722*c.b;
 }
