@@ -68,7 +68,6 @@ var TEMPLATES = {
     var logoUri = card.logoImageId ? imageDataUri(card.logoImageId) : null;
     var logoHtml = logoUri ? `<img class="logo" src="${logoUri}">` : `<div class="logoPh"></div>`;
     
-
     return `
 <!doctype html><html><head>
 <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,user-scalable=no" />
@@ -290,7 +289,7 @@ function renderHome()
   // Recreate layGrid (no RemoveAllChildren in DS 2.78.9 reliably)
   try { layHome.RemoveChild(layGrid); } catch(e){}
   layGrid = app.CreateLayout("Linear", "FillX");
-  layGrid.SetPadding(0,0.01,0,0.02);
+  layGrid.SetPadding(0.02,0.02,0,0.02);
   layHome.AddChild(layGrid);
 
   var cards = getSortedCards();
@@ -299,7 +298,7 @@ function renderHome()
 
   // Correct real aspect ratio: W/H = 1.6
   var asp = GetDisplayAspectSafe();
-  var tileW = 0.46;
+  var tileW = 0.46; //0.46;
   var tileH = tileW / 1.6 / asp;
 
   // Home page card layout
