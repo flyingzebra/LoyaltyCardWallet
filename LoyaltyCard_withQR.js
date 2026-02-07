@@ -1,7 +1,7 @@
 // LoyaltyCard.js
 // DroidScript 2.78.9
 // ------------------------------------------------------------
-// v0.82 (integrated)
+// v0.81 (integrated)
 // - Home: 2-col grid, correct real aspect ratio W/H=1.6
 // - Home tiles: Title + Notes only (NO barcode)
 // - Detail view: headerColor + optional logo + offline barcode (EAN-13 + Code128-B)
@@ -30,8 +30,8 @@ var txtHdr, btnCog, btnExit;
 // Barcode tuning (CSS pixels)
 var BAR_EAN13_HEIGHT = 90;
 var BAR_EAN13_MODULE_W = 15;
-var BAR_C128_HEIGHT = 90;
-var BAR_C128_MODULE_W = 9;
+var BAR_C128_HEIGHT = 50;
+var BAR_C128_MODULE_W = 15;
 
 // Hard-coded catalog (Add card list)
 var CATALOG = [
@@ -173,25 +173,19 @@ var TEMPLATES = {
   .hText{margin-left:10px;overflow:hidden;}
   .hTitle{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .hSub{font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .content{padding:0px;box-sizing:border-box;background:#fff;color:#000;height:100%}
+  .content{padding:12px;box-sizing:border-box;background:#fff;}
   /* Barcode must be black on white */
-  .barcodePanel{margin-top:0px;padding-top:4px; line-height: 100%;}
+  .barcodePanel{margin-top:0px;padding:10px;border:1px; }
   #barcodeArea{display:flex;justify-content:center;align-items:center;flex-wrap:nowrap;}
   #barcodeArea img{image-rendering:pixelated;}
 
   /* QR (UTF8 blocks) */
-  .qrArea{display:flex;justify-content:center;align-items:center;padding:0px;margin:0px;}
-  .qrBox
-  {
-      font-family:monospace;background:#fff;color:#000;
-      padding:0px;margin:0px;
-      border-radius:8px;
-      display:inline-block;
-      line-height:8px;
-      font-size:8px;
-  }
+  .qrArea{display:flex;justify-content:center;align-items:center;}
+  .qrBox{font-family:monospace;background:#fff;color:#000;padding:8px;border-radius:8px;
+         display:inline-block;line-height:8px;font-size:8px;transform:scale(1,0.85);}
+
   .codeText{margin-top:6px;text-align:center;font:14px sans-serif;color:#111;letter-spacing:1px;}
-  .noteHint{opacity:.9;font-size:12px;margin-top:8px;text-align:center}
+  .noteHint{opacity:.9;font-size:12px;margin-top:8px;}
 </style>
 </head><body>
 <div class="card">
@@ -200,15 +194,14 @@ var TEMPLATES = {
   </div>
   <div class="content">
     ${contentBlock}
-    <div class="noteHint">
-    ${showBarcode ? "Barcode is rendered fully offline." : (showQr ? "QR code is rendered fully offline." : "")}
-    </div>
+    <div class="noteHint">${showBarcode ? "Barcode is rendered fully offline." : (showQr ? "QR code is rendered fully offline." : "")}</div>
   </div>
 </div>
+
 <script>
 `
-+ barcode_render_scripts 
-+ qrcode_render_scripts
++barcode_render_scripts
++qrcode_render_scripts
 +
 `
 /* ---------------- Init ---------------- */
@@ -238,7 +231,7 @@ var TEMPLATES = {
   }
 
   if (showQr) {
-    renderQR("qrArea", val);
+    renderQR_UTF8("qrArea", val);
     var ct4 = document.getElementById("codeText");
     if(ct4) ct4.textContent = val;
   }

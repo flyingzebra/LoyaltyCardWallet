@@ -605,46 +605,22 @@ var qrcode = function() {
       cellSize = cellSize || 2;
       margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
 
-      var pix_w_b64  = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAAXNSR0IB2cksfwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAANQTFRF////p8QbyAAAAApJREFUeJxjYAAAAAIAAUivpHEAAAAASUVORK5CYII=";
-      var pix_b_b64  = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAAXNSR0IB2cksfwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAANQTFRFAAAAp3o92gAAAApJREFUeJxjYAAAAAIAAUivpHEAAAAASUVORK5CYII=";
-      
-      var qrHtml = "<div style='line-height:0px;padding-top:4px'>";
-      for (var r = 0; r < _this.getModuleCount(); r += 1) 
-      {
-        for (var c = 0; c < _this.getModuleCount(); c += 1) 
-        {
-           qrHtml += _this.isDark(r, c)? 
-           "<img src='"+pix_b_b64+"' style='width:4px;height:4px;padding:0px;margin:0px;border:0px solid'>" 
-           : "<img src='"+pix_w_b64+"' style='width:4px;height:4px;padding:0px;margin:0px;border:0px solid'>";
-        }
-        qrHtml += '<br>';
-      }
-      return "</div>"+qrHtml;
-    };
-    
-    _this.createHTML = function(cellSize, margin) {
 
-      cellSize = cellSize || 2;
-      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
-
-      var aHTML = ['<table style="border:1px solid;border-collapse:collapse;">'];
+      var pix_b64  = "data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="; // the Image contains 1px data.
 
       var qrHtml = '';
+
       for (var r = 0; r < _this.getModuleCount(); r += 1) {
-        aHTML.push('<tr>');
-        for (var c = 0; c < _this.getModuleCount(); c += 1) 
-        {
-            aHTML.push('<td style="border:0;border-collapse:collapse;padding:0;margin:0;width:' + nWidth + 'px;height:' + nHeight + 'px;background-color:' 
-            + (_this.isDark(r, c) ? "#000000" :"#FFFFFF" ) 
-            + ';"></td>');
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+
+           qrHtml += _this.isDark(r, c)? "<img src='"+pix_b64+"'>" : "<img src='"+pix_b64+"'>";
         }
 
-        aHTML.push('</tr>');
+        qrHtml += '<br>';
       }
-      aHTML.push('</table>');
-      return aHtml;
+      return qrHtml;
     };
-    
 
     _this.renderTo2dContext = function(context, cellSize) {
       cellSize = cellSize || 2;
@@ -1924,17 +1900,15 @@ var qrcode = function() {
 }();
 
 
-function renderQR(targetId, text)
-{
+function renderQR_UTF8(targetId, text){
   try {
     if(qrcode && qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs["UTF-8"]) {
       qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
     }
   } catch(e) {}
 
-  // QR CODE PARAMETERS
   var t = 0;       // auto (0..40)
-  var e = "L";     // L, M, Q, H
+  var e = "M";     // L, M, Q, H
   var mode = "Byte";
 
   var qr = qrcode(t || 4, e || "M");
@@ -1948,12 +1922,8 @@ function renderQR(targetId, text)
   el.innerHTML = "";
   var box = document.createElement("div");
   box.className = "qrBox";
-  
-  // DISPLAY QR CODE
-      //box.innerHTML = qr.createUTF8();
-      box.innerHTML = qr.createImgBase64();
-      //box.innerHTML = qr.createHTML();
-  
+  //box.innerHTML = qr.createUTF8();
+  box.innerHTML = qr.createImgBase64();
   el.appendChild(box);
 
   // Auto-fit (best effort): tune font size based on screen width and module count.
