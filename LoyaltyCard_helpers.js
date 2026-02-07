@@ -35,6 +35,11 @@ function genBarcode(bitString, sliceWidthPx, sliceHeightPx) {
   return out;
 }
 
+function ean13_spacer(str)
+{
+    return str.substring(0,1)+"  "+str.substring(1,7) + "  " + str.substring(7,16);
+}
+
 /* ---------------- EAN-13 ---------------- */
 var arrayCodeEANBin = [
   [ '0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011' ],

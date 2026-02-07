@@ -1,7 +1,7 @@
-// LoyaltyCard_v08.js
+// LoyaltyCard.js
 // DroidScript 2.78.9
 // ------------------------------------------------------------
-// v0.8 (integrated)
+// v0.81 (integrated)
 // - Home: 2-col grid, correct real aspect ratio W/H=1.6
 // - Home tiles: Title + Notes only (NO barcode)
 // - Detail view: headerColor + optional logo + offline barcode (EAN-13 + Code128-B)
@@ -26,8 +26,9 @@ var gTapLock = false;
 var layRoot, wvBg, layUi, layHome, scHome, layGrid;
 var txtHdr, btnCog, btnExit;
 
+
 // Barcode tuning (CSS pixels)
-var BAR_EAN13_HEIGHT = 65;
+var BAR_EAN13_HEIGHT = 90;
 var BAR_EAN13_MODULE_W = 15;
 var BAR_C128_HEIGHT = 50;
 var BAR_C128_MODULE_W = 15;
@@ -98,8 +99,10 @@ var TEMPLATES = {
   max-height:80%;
   width:auto;
   height:auto;
+  /*margin-bottom: 15px;*/
   object-fit:contain;
   background:transparent;
+  /*border: 1px solid white;*/
 }
 
 
@@ -170,9 +173,9 @@ var TEMPLATES = {
   .hText{margin-left:10px;overflow:hidden;}
   .hTitle{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .hSub{font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .content{padding:12px;box-sizing:border-box;}
+  .content{padding:12px;box-sizing:border-box;background:#fff;}
   /* Barcode must be black on white */
-  .barcodePanel{margin-top:12px;background:#fff;border-radius:12px;padding:10px;border:1px solid rgba(0,0,0,.15);}
+  .barcodePanel{margin-top:0px;padding:10px;border:1px; }
   #barcodeArea{display:flex;justify-content:center;align-items:center;flex-wrap:nowrap;}
   #barcodeArea img{image-rendering:pixelated;}
   .codeText{margin-top:6px;text-align:center;font:14px sans-serif;color:#111;letter-spacing:1px;}
@@ -205,13 +208,13 @@ barcode_render_scripts
 
   if(fmt === "ean13"){
     var r = renderEAN13("barcodeArea", val, ${BAR_EAN13_HEIGHT}, ${BAR_EAN13_MODULE_W});
-    document.getElementById("codeText").textContent = r.ok ? r.digits13 : val;
+    document.getElementById("codeText").textContent = ean13_spacer(r.ok ? r.digits13 : val_spaced);
   } else if(fmt === "code128"){
     renderCode128B("barcodeArea", val, ${BAR_C128_HEIGHT}, ${BAR_C128_MODULE_W});
-    document.getElementById("codeText").textContent = val;
+    document.getElementById("codeText").textContent = val_spaced;
   } else {
     document.getElementById("barcodeArea").innerHTML = "<div style='font:14px sans-serif;color:#111;'>Unsupported format</div>";
-    document.getElementById("codeText").textContent = val;
+    document.getElementById("codeText").textContent = val_spaced;
   }
 })();
 </script>
@@ -315,7 +318,6 @@ function renderHome()
   }
 }
 
-
 function createTile(tile, w, h)
 {
     var lay = app.CreateLayout("Frame");
@@ -325,31 +327,35 @@ function createTile(tile, w, h)
     wv.SetBackColor("#00000000");
     lay.AddChild(wv);
 
-    // Replace Button overlay with Layout overlay (no darkening)
+    // Touch overlay
     var hit = app.CreateLayout("Linear");
     hit.SetSize(w, h);
     hit.SetBackColor("#00000000");
-    
-    //var bg = (tile && tile.headerColor) ? tile.headerColor : "#00000000";
-    //hit.SetBackColor(bg);
-    
 
     if (tile && tile.__isAddTile)
     {
+        // this is the tile with the (+) sign
         wv.LoadHtml(TEMPLATES.tpl_add());
         hit.SetOnTouch(function(){ RunOnceTap(openAddCardDialog); });
     }
     else
     {
         var card = tile;
+        hit.cardId = card.id;
+
         if (card.cardKind === "template")
             wv.LoadHtml(TEMPLATES.tpl_basic_tile(card));
         else
             wv.LoadHtml(imageTileHtml(card.title, card.notes, imageDataUri(card.frontImageId)));
+
         
-        hit.SetOnTouch((function(id){
-            return function(){ RunOnceTap(function(){ onCardTapped(id); }); };
-        })(card.id));
+        //app.Debug("createTile: title=" + card.title + " id=" + card.id);
+     hit.cardId = String(card.id);
+    hit.SetOnTouch(function(){
+        var id = this.cardId;
+        RunOnceTap(function(){ onCardTapped(id); });
+    });   
+ 
 
     }
 
@@ -358,10 +364,12 @@ function createTile(tile, w, h)
 }
 
 
+
 // ------------------------------------------------------------
 // Card tap -> detail actions
 // ------------------------------------------------------------
 function onCardTapped(cardId) {
+    
   var card = findCardById(cardId);
   if (!card) return;
 
@@ -1342,8 +1350,11 @@ function uuidv4()
 function RunOnceTap(fn) {
     if (gTapLock) return;
     gTapLock = true;
+
     try { fn(); } catch(e) { app.Alert(e); }
-    setTimeout(function(){ gTapLock = false; }, 350); // 250–500ms works well
+
+    // Use DroidScript timer (more consistent than setTimeout here)
+    app.SetTimeout(function () { gTapLock = false; }, 800);
 }
 
 
